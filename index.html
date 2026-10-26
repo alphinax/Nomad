@@ -22,7 +22,7 @@ p{margin:0}
 .f{display:flex;flex-direction:column;gap:8px;font-weight:600;font-size:15px;border:0;padding:0;margin:0;min-width:0}
 .f small{font-weight:400;color:var(--mute);font-size:13px}
 .req{color:#B3261E}
-input[type=text],input[type=tel],input[type=date],input[type=time],input[type=number],textarea{font:inherit;font-weight:400;padding:12px 14px;border:1px solid #6F8E8A;border-radius:10px;min-height:44px;background:#fff;color:var(--ink);width:100%}
+input[type=text],input[type=tel],input[type=date],input[type=time],input[type=number],textarea{font:inherit;font-weight:400;padding:12px 14px;border:1px solid #6F8E8A;border-radius:10px;min-height:44px}
 textarea{min-height:96px}
 :focus-visible{outline:3px solid var(--teal);outline-offset:2px}
 .row{display:flex;gap:16px;flex-wrap:wrap}.row>*{flex:1 1 170px}
@@ -56,7 +56,7 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}
 <div class="card">
 <div class="sec"><div class="num">1</div><h2>About you</h2></div>
 <label class="f">Full name <span class="req">*</span><input type="text" name="name" required autocomplete="name"></label>
-<label class="f">WhatsApp number <span class="req">*</span><small>Include the country code, for example +94 … We confirm your booking here.</small><input type="tel" name="whatsapp" required autocomplete="tel" inputmode="tel"></label>
+<label class="f">WhatsApp number <span class="req">*</span><small>Include the country code, for example +94 … We confirm your booking here.</small><input type="tel" name="whatsapp" required autocomplete="tel"></label>
 <div class="row">
 <label class="f">Check-in date <span class="req">*</span><input type="date" name="checkin" required></label>
 <label class="f">Check-out date <span class="req">*</span><input type="date" name="checkout" required></label>
@@ -91,7 +91,7 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}
 <script>
 /* ============ EDIT THIS PART ============ */
 const CONFIG = {
-  homestayName: "[HOMESTAY NAME]",
+  homestayName: "Mango Villa Varkala",
   confirmTime: "1 hour",
   scriptUrl: "https://script.google.com/macros/s/AKfycbwUTF5Z_VcXNsaPWRqaIMTpVV3VNIFM70x4t3j71htJaFdFNWAXL_bAMiZS9fZ5GCFEIw/exec",          // paste your Google Apps Script web app URL here
   whatsappNumber: "",     // optional, digits only with country code, e.g. 94771234567
@@ -120,7 +120,7 @@ const SERVICES = [
 /* ============ END OF EDIT AREA ============ */
 
 const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const esc = (s) => String(s).replace(/[&<>\"]+/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
 const form = $("#form");
 
 $("#hName").textContent = CONFIG.homestayName;
@@ -171,7 +171,7 @@ function collect() {
   };
 }
 const waLink = (text) => CONFIG.whatsappNumber ? `https://wa.me/${CONFIG.whatsappNumber}?text=${encodeURIComponent(text)}` : "";
-const summary = (d) => `Hi ${CONFIG.homestayName}, I’d like to book:\n\n${d.details}\n\nName: ${d.name}\nStay: ${d.checkin} to ${d.checkout}${d.room ? " (" + d.room + ")" : ""}\nGuests: ${d.guests}${d.notes ? "\nNotes: " + d.notes : ""}`;
+const summary = (d) => `Hi ${CONFIG.homestayName}, I’d like to book:\n\n${d.details}\n\nName: ${d.name}\nStay: ${d.checkin} to ${d.checkout}${d.room ? " (" + d.room + ")" : ""}\nGuests: ${d.guests}\nPayment: ${d.payment || "Not selected"}\nNotes: ${d.notes || "None"}`;
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -187,7 +187,7 @@ form.addEventListener("submit", async (e) => {
     form.hidden = true;
     const wa = waLink(summary(d));
     $("#done").hidden = false;
-    $("#done").innerHTML = `<h2>Request sent</h2><p>Thank you, ${esc(d.name)}. We’ll confirm on WhatsApp within ${esc(CONFIG.confirmTime)}.</p><pre>${esc(d.details)}</pre>${wa ? `<p class="sub">Want to be sure we see it? Send the same details on WhatsApp.</p><a class="btn" href="${wa}">Also send on WhatsApp</a>` : ""}`;
+    $("#done").innerHTML = `<h2>Request sent</h2><p>Thank you, ${esc(d.name)}. We’ll confirm on WhatsApp within ${esc(CONFIG.confirmTime)}.</p><pre>${esc(d.details)}</pre>${wa ? `<p class="sub">Want to send it manually? <a href="${wa}">Open WhatsApp</a></p>` : ""}`;
     window.scrollTo({ top: 0 });
   } catch (err) {
     const wa = waLink(summary(d));
