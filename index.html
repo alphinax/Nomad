@@ -93,12 +93,10 @@ a.btn{display:inline-block;text-decoration:none;text-align:center}
 const CONFIG = {
   homestayName: "Mango Villa Varkala",
   confirmTime: "1 hour",
-  scriptUrl: "https://script.google.com/macros/s/AKfycbwUTF5Z_VcXNsaPWRqaIMTpVV3VNIFM70x4t3j71htJaFdFNWAXL_bAMiZS9fZ5GCFEIw/exec",          // paste your Google Apps Script web app URL here
-  whatsappNumber: "",     // optional, digits only with country code, e.g. 94771234567
+  scriptUrl: "https://script.google.com/macros/s/AKfycbwUTF5Z_VcXNsaPWRqaIMTpVV3VNIFM70x4t3j71htJaFdFNWAXL_bAMiZS9fZ5GCFEIw/exec",
+  whatsappNumber: "",
   paymentOptions: ["Pay at the homestay", "Bank transfer", "Cash on the day"]
 };
-/* To add a service later, copy one block below and change the words.
-   Field types: date, time, number, text, chips (give "options"). */
 const SERVICES = [
   {id:"kayak", name:"Kayaking", blurb:"Guided or self-paced paddle.", fields:[
     {k:"Preferred date", t:"date"}, {k:"People", t:"number"},
@@ -117,7 +115,6 @@ const SERVICES = [
     {k:"Flight number (airport trips)", t:"text"},
     {k:"Vehicle", t:"chips", o:["Car","Van","Tuk-tuk"]}]}
 ];
-/* ============ END OF EDIT AREA ============ */
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>\"]+/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
@@ -128,7 +125,6 @@ $("#hLine").textContent = "Kayaking, surfing, canoe trips and cabs, all arranged
 $("#agreeTxt").textContent = "I understand my booking is only confirmed when " + CONFIG.homestayName + " replies on WhatsApp.";
 $("#lastNum").textContent = "4";
 $("#pay").innerHTML = CONFIG.paymentOptions.map(o => `<label class="chip"><input type="radio" name="pay" value="${esc(o)}">${esc(o)}</label>`).join("");
-
 $("#tiles").innerHTML = SERVICES.map(s => `<label class="tile"><input type="checkbox" data-svc="${s.id}"><span><b>${esc(s.name)}</b><br><span class="sub">${esc(s.blurb)}</span></span></label>`).join("");
 $("#blocks").innerHTML = SERVICES.map(s => `<fieldset class="block" id="blk-${s.id}" hidden><h3>${esc(s.name)}</h3><div class="row">${s.fields.map((f, i) => field(s, f, i)).join("")}</div></fieldset>`).join("");
 
@@ -171,31 +167,60 @@ function collect() {
   };
 }
 const waLink = (text) => CONFIG.whatsappNumber ? `https://wa.me/${CONFIG.whatsappNumber}?text=${encodeURIComponent(text)}` : "";
-const summary = (d) => `Hi ${CONFIG.homestayName}, I’d like to book:\n\n${d.details}\n\nName: ${d.name}\nStay: ${d.checkin} to ${d.checkout}${d.room ? " (" + d.room + ")" : ""}\nGuests: ${d.guests}\nPayment: ${d.payment || "Not selected"}\nNotes: ${d.notes || "None"}`;
+const summary = (d) => `Hi ${CONFIG.homestayName}, I’d like to book:\n\n${d.details}\n\nName: ${d.name}\nStay: ${d.checkin} to ${d.checkout}${d.room ? " (" + d.room + ")" : ""}\nGuests: ${d.guests}\nPayment: ${d.payment || "Not set"}\nNotes: ${d.notes || "None"}`;
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const none = !document.querySelector("[data-svc]:checked");
   document.querySelector("[data-svc]").setCustomValidity(none ? "Tick at least one activity." : "");
-  if (form.checkout.value && form.checkout.value < form.checkin.value) form.checkout.setCustomValidity("Check-out must be after check-in."); else form.checkout.setCustomValidity("");
+  if (form.checkout.value && form.checkout.value < form.checkin.value) {
+    form.checkout.setCustomValidity("Check-out must be after check-in.");
+  } else {
+    form.checkout.setCustomValidity("");
+  }
   if (!form.reportValidity()) return;
+
   const d = collect(), st = $("#status"), btn = $("#send");
-  if (!CONFIG.scriptUrl) { st.className = "msg err"; st.textContent = "Setup not finished: add your Google Apps Script link to CONFIG.scriptUrl in this file."; return; }
-  btn.disabled = true; btn.textContent = "Sending…"; st.className = ""; st.textContent = "";
+  if (!CONFIG.scriptUrl) {
+    st.className = "msg err";
+    st.textContent = "Setup not finished: add your Google Apps Script link to CONFIG.scriptUrl in this file.";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+  st.className = "";
+  st.textContent = "";
+
   try {
-    await fetch(CONFIG.scriptUrl, { method: "POST", mode: "no-cors", body: JSON.stringify(d) });
+    const response = await fetch(CONFIG.scriptUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(d)
+    });
+
+    const text = await response.text();
+    let result = {};
+    try { result = JSON.parse(text); } catch { result = { message: text }; }
+
+    if (!response.ok || result.ok === false) {
+      throw new Error(result.error || result.message || `Request failed (${response.status})`);
+    }
+
     form.hidden = true;
     const wa = waLink(summary(d));
     $("#done").hidden = false;
-    $("#done").innerHTML = `<h2>Request sent</h2><p>Thank you, ${esc(d.name)}. We’ll confirm on WhatsApp within ${esc(CONFIG.confirmTime)}.</p><pre>${esc(d.details)}</pre>${wa ? `<p class="sub">Want to send it manually? <a href="${wa}">Open WhatsApp</a></p>` : ""}`;
+    $("#done").innerHTML = `<h2>Request sent</h2><p>Thank you, ${esc(d.name)}. We’ll confirm on WhatsApp within ${esc(CONFIG.confirmTime)}.</p><pre>${esc(d.details)}</pre>${wa ? `<p class="sub">Want to send the same request on WhatsApp instead? <a href="${wa}" target="_blank" rel="noopener">Open WhatsApp</a></p>` : ""}`;
     window.scrollTo({ top: 0 });
   } catch (err) {
     const wa = waLink(summary(d));
     st.className = "msg err";
-    st.innerHTML = "We couldn’t send your request. Check your connection and try again." + (wa ? ` Or <a href="${wa}">send it on WhatsApp</a>.` : "");
-    btn.disabled = false; btn.textContent = "Send booking request";
+    st.innerHTML = (err && err.message ? err.message : "We couldn’t send your request. Check your connection and try again.") + (wa ? ` Or <a href="${wa}" target="_blank" rel="noopener">send it on WhatsApp</a>.` : "");
+    btn.disabled = false;
+    btn.textContent = "Send booking request";
   }
 });
+
 form.addEventListener("reset", () => setTimeout(() => {
   document.querySelectorAll(".block").forEach(b => b.hidden = true);
   $("#detailsCard").hidden = true; $("#lastNum").textContent = "3";
