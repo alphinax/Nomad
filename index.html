@@ -171,16 +171,22 @@ const summary = (d) => `Hi ${CONFIG.homestayName}, I’d like to book:\n\n${d.de
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
+
   const none = !document.querySelector("[data-svc]:checked");
   document.querySelector("[data-svc]").setCustomValidity(none ? "Tick at least one activity." : "");
+
   if (form.checkout.value && form.checkout.value < form.checkin.value) {
     form.checkout.setCustomValidity("Check-out must be after check-in.");
   } else {
     form.checkout.setCustomValidity("");
   }
+
   if (!form.reportValidity()) return;
 
-  const d = collect(), st = $("#status"), btn = $("#send");
+  const d = collect();
+  const st = $("#status");
+  const btn = $("#send");
+
   if (!CONFIG.scriptUrl) {
     st.className = "msg err";
     st.textContent = "Setup not finished: add your Google Apps Script link to CONFIG.scriptUrl in this file.";
@@ -192,16 +198,26 @@ form.addEventListener("submit", async (e) => {
   st.className = "";
   st.textContent = "";
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+
   try {
     const response = await fetch(CONFIG.scriptUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(d)
+      body: JSON.stringify(d),
+      signal: controller.signal
     });
 
     const text = await response.text();
+    console.log("Apps Script response:", response.status, text);
+
     let result = {};
-    try { result = JSON.parse(text); } catch { result = { message: text }; }
+    try {
+      result = JSON.parse(text);
+    } catch {
+      result = { ok: true, message: text };
+    }
 
     if (!response.ok || result.ok === false) {
       throw new Error(result.error || result.message || `Request failed (${response.status})`);
@@ -210,14 +226,26 @@ form.addEventListener("submit", async (e) => {
     form.hidden = true;
     const wa = waLink(summary(d));
     $("#done").hidden = false;
-    $("#done").innerHTML = `<h2>Request sent</h2><p>Thank you, ${esc(d.name)}. We’ll confirm on WhatsApp within ${esc(CONFIG.confirmTime)}.</p><pre>${esc(d.details)}</pre>${wa ? `<p class="sub">Want to send the same request on WhatsApp instead? <a href="${wa}" target="_blank" rel="noopener">Open WhatsApp</a></p>` : ""}`;
+    $("#done").innerHTML = `
+      <h2>Request sent</h2>
+      <p>Thank you, ${esc(d.name)}. We’ll confirm on WhatsApp within ${esc(CONFIG.confirmTime)}.</p>
+      <pre>${esc(d.details)}</pre>
+      ${wa ? `<p class="sub"><a href="${wa}" target="_blank" rel="noopener">Open WhatsApp summary</a></p>` : ""}
+    `;
     window.scrollTo({ top: 0 });
   } catch (err) {
     const wa = waLink(summary(d));
+    const msg = err.name === "AbortError"
+      ? "The request timed out. Please check your Google Apps Script deployment and web app URL."
+      : (err.message || "We couldn’t send your request. Check your connection and try again.");
+
     st.className = "msg err";
-    st.innerHTML = (err && err.message ? err.message : "We couldn’t send your request. Check your connection and try again.") + (wa ? ` Or <a href="${wa}" target="_blank" rel="noopener">send it on WhatsApp</a>.` : "");
+    st.innerHTML = msg + (wa ? ` Or <a href="${wa}" target="_blank" rel="noopener">send it on WhatsApp</a>.` : "");
     btn.disabled = false;
     btn.textContent = "Send booking request";
+    console.error("Submit error:", err);
+  } finally {
+    clearTimeout(timeout);
   }
 });
 
